@@ -194,6 +194,11 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 
+		// calling parent thread
+    if(currentThread().parentThread != null){
+    	currentThread().wakeUpParent();
+		}
+
 		sleep();
 	}
 
@@ -277,6 +282,16 @@ public class KThread {
 
 		Lib.assertTrue(this != currentThread);
 
+		if(parentThread == null){
+			parentThread = currentThread();
+			sleep();
+		}
+	}
+
+	private void wakeUpParent() {
+		Lib.assertTrue( parentThread != null);
+		parentThread.ready();
+		parentThread = null;
 	}
 
 	/**
@@ -329,9 +344,6 @@ public class KThread {
 	 * changed from running to blocked or ready (depending on whether the
 	 * thread is sleeping or yielding).
 	 *
-	 * @param	finishing	<tt>true</tt> if the current thread is
-	 *				finished, and should be destroyed by the new
-	 *				thread.
 	 */
 	private void run() {
 		Lib.assertTrue(Machine.interrupt().disabled());
@@ -431,6 +443,11 @@ public class KThread {
 	private String name = "(unnamed thread)";
 	private Runnable target;
 	private TCB tcb;
+
+	/**
+	 * thread that called join
+	 */
+	private KThread parentThread = null;
 
 	/**
 	 * Unique identifer for this thread. Used to deterministically compare
