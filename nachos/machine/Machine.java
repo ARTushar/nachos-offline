@@ -50,6 +50,7 @@ public final class Machine {
 	privilege.machine = new MachinePrivilege();
 
 	TCB.givePrivilege(privilege);
+
 	privilege.stats = stats;
 
 	securityManager.enable();
