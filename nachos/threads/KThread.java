@@ -282,9 +282,12 @@ public class KThread {
 
 		Lib.assertTrue(this != currentThread);
 
-		if(parentThread == null){
+
+		if(status != statusFinished && parentThread == null){
 			parentThread = currentThread();
+			boolean status = Machine.interrupt().disable();
 			sleep();
+			Machine.interrupt().restore(status);
 		}
 	}
 
@@ -409,6 +412,48 @@ public class KThread {
 		private int which;
 	}
 
+	private static class JoinTest implements Runnable {
+		@Override
+		public void run() {
+
+			KThread[] threads = new KThread[5];
+
+		  for(int i = 0; i < 5; i++){
+				System.out.println("**** creating thread: " + i + " *****");
+				Test test = new Test(i);
+				KThread kThread = new KThread(test);
+				threads[i] = kThread;
+				kThread.fork();
+			}
+			for(int i = 0; i < 5; i++){
+				System.out.println("**** joining thread: " + i + " *****");
+				threads[i].join();
+			}
+
+			System.out.println("**** Finished executing ****");
+		}
+
+		private static class Test implements Runnable {
+
+			private final int which;
+
+			Test(int which){
+				this.which = which;
+			}
+
+			@Override
+			public void run() {
+				for (int i=0; i<5 + 2 * which; i++) {
+					System.out.println("**** thread " + which + " looped "
+							+ i + " times ****");
+					currentThread.yield();
+				}
+				System.out.println("**** finished Thead " + which + " ****");
+			}
+		}
+
+	}
+
 	/**
 	 * Tests whether this module is working.
 	 */
@@ -417,6 +462,8 @@ public class KThread {
 
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
+
+		new JoinTest().run();
 	}
 
 	private static final char dbgThread = 't';
