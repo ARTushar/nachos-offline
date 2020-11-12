@@ -32,8 +32,7 @@ public class Alarm {
      * that should be run.
      */
     public void timerInterrupt() {
-	    if (wakeTime < Machine.timer().getTime()) {
-	        Lib.assertTrue(callerThread != null);
+	    if (callerThread != null && wakeTime < Machine.timer().getTime()) {
 	        callerThread.ready();
 	        callerThread = null;
 	        wakeTime = 0;
@@ -57,9 +56,29 @@ public class Alarm {
      * @see	nachos.machine.Timer#getTime()
      */
     public void waitUntil(long x) {
-        binaryLock.P();
-        wakeTime = Machine.timer().getTime() + x;
-        callerThread = KThread.currentThread();
-        KThread.sleep();
+      binaryLock.P();
+      wakeTime = Machine.timer().getTime() + x;
+      callerThread = KThread.currentThread();
+      boolean status = Machine.interrupt().disable();
+      KThread.sleep();
+      Machine.interrupt().restore(status);
     }
+
+  public static void selfTest() {
+    new PingTest().run();
+  }
+
+  private static class PingTest implements Runnable{
+
+
+    @Override
+    public void run() {
+      Alarm alarm = new Alarm();
+      System.out.println("Calling alarm at " + Machine.timer().getTime() +
+          " for 1000");
+      alarm.waitUntil(1000);
+
+      System.out.println("Waken at " + Machine.timer().getTime());
+    }
+  }
 }
