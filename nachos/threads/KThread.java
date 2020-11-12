@@ -462,13 +462,17 @@ public class KThread {
 
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
-		new JoinTest().run();
+//		new JoinTest().run();
 
 		// testing condition2
 //		Condition2.selfTest();
 
 		//testing Alarm Class
-		Alarm.selfTest();
+//		Alarm.selfTest();
+
+		// testing Communicator Class
+
+		Communicator.selfTest();
 	}
 
 	private static final char dbgThread = 't';
