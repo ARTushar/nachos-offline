@@ -14,12 +14,14 @@ public class Communicator {
      * Allocate a new communicator.
      */
     int word;
-    boolean spoken;
+    boolean speakerPresent = false;
+    boolean listenerPresent = false;
+    boolean spoken = false;
+    boolean read = false;
     Lock conditionLock = null;
     Condition conditionVarSpeaker = null;
     Condition conditionVarListener = null;
     public Communicator() {
-        spoken = false;
         conditionLock = new Lock();
         conditionVarSpeaker = new Condition(conditionLock);
         conditionVarListener = new Condition(conditionLock);
@@ -37,10 +39,15 @@ public class Communicator {
      */
     public void speak(int word) {
         conditionLock.acquire();
-        if (spoken) conditionVarSpeaker.sleep();
-        this.word = word;
-        this.spoken = true;
+        speakerPresent = true;
+        while (!listenerPresent) conditionVarSpeaker.sleep();
         conditionVarListener.wake();
+        this.word = word;
+        spoken = true;
+        while (!read){
+        }
+        read = false;
+        speakerPresent = false;
         conditionLock.release();
     }
 
@@ -49,14 +56,19 @@ public class Communicator {
      * the <i>word</i> that thread passed to <tt>speak()</tt>.
      *
      * @return	the integer transferred.
-     */    
+     */
     public int listen() {
         conditionLock.acquire();
-        if (!spoken) conditionVarListener.sleep();
-        int data = word;
-        this.spoken = false;
+        listenerPresent = true;
+        while (!speakerPresent) conditionVarListener.sleep();
         conditionVarSpeaker.wake();
+        while (!spoken){
+        }
+        int data = word;
+        read = true;
+        spoken = false;
+        listenerPresent = false;
         conditionLock.release();
-	    return data;
+        return data;
     }
 }
