@@ -13,7 +13,16 @@ public class Communicator {
     /**
      * Allocate a new communicator.
      */
+    int word;
+    boolean spoken;
+    Lock conditionLock = null;
+    Condition conditionVarSpeaker = null;
+    Condition conditionVarListener = null;
     public Communicator() {
+        spoken = false;
+        conditionLock = new Lock();
+        conditionVarSpeaker = new Condition(conditionLock);
+        conditionVarListener = new Condition(conditionLock);
     }
 
     /**
@@ -27,6 +36,12 @@ public class Communicator {
      * @param	word	the integer to transfer.
      */
     public void speak(int word) {
+        conditionLock.acquire();
+        if (spoken) conditionVarSpeaker.sleep();
+        this.word = word;
+        this.spoken = true;
+        conditionVarListener.wake();
+        conditionLock.release();
     }
 
     /**
@@ -36,6 +51,12 @@ public class Communicator {
      * @return	the integer transferred.
      */    
     public int listen() {
-	return 0;
+        conditionLock.acquire();
+        if (!spoken) conditionVarListener.sleep();
+        int data = word;
+        this.spoken = false;
+        conditionVarSpeaker.wake();
+        conditionLock.release();
+	    return data;
     }
 }
