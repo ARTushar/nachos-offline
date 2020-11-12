@@ -194,6 +194,11 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 
+		// calling parent thread
+    if(currentThread().parentThread != null){
+    	currentThread().wakeUpParent();
+		}
+
 		sleep();
 	}
 
@@ -277,6 +282,19 @@ public class KThread {
 
 		Lib.assertTrue(this != currentThread);
 
+
+		if(status != statusFinished && parentThread == null){
+			parentThread = currentThread();
+			boolean status = Machine.interrupt().disable();
+			sleep();
+			Machine.interrupt().restore(status);
+		}
+	}
+
+	private void wakeUpParent() {
+		Lib.assertTrue( parentThread != null);
+		parentThread.ready();
+		parentThread = null;
 	}
 
 	/**
@@ -329,9 +347,6 @@ public class KThread {
 	 * changed from running to blocked or ready (depending on whether the
 	 * thread is sleeping or yielding).
 	 *
-	 * @param	finishing	<tt>true</tt> if the current thread is
-	 *				finished, and should be destroyed by the new
-	 *				thread.
 	 */
 	private void run() {
 		Lib.assertTrue(Machine.interrupt().disabled());
@@ -397,14 +412,61 @@ public class KThread {
 		private int which;
 	}
 
+	private static class JoinTest implements Runnable {
+		@Override
+		public void run() {
+
+			KThread[] threads = new KThread[5];
+
+		  for(int i = 0; i < 5; i++){
+				System.out.println("**** creating thread: " + i + " *****");
+				Test test = new Test(i);
+				KThread kThread = new KThread(test);
+				threads[i] = kThread;
+				kThread.fork();
+			}
+			for(int i = 0; i < 5; i++){
+				System.out.println("**** joining thread: " + i + " *****");
+				threads[i].join();
+			}
+
+			System.out.println("**** Finished executing ****");
+		}
+
+		private static class Test implements Runnable {
+
+			private final int which;
+
+			Test(int which){
+				this.which = which;
+			}
+
+			@Override
+			public void run() {
+				for (int i=0; i<5 + 2 * which; i++) {
+					System.out.println("**** thread " + which + " looped "
+							+ i + " times ****");
+					currentThread.yield();
+				}
+				System.out.println("**** finished Thead " + which + " ****");
+			}
+		}
+
+	}
+
 	/**
 	 * Tests whether this module is working.
 	 */
 	public static void selfTest() {
 		Lib.debug(dbgThread, "Enter KThread.selfTest");
+//
+//		new KThread(new PingTest(1)).setName("forked thread").fork();
+//		new PingTest(0).run();
+//
+//		new JoinTest().run();
 
-		new KThread(new PingTest(1)).setName("forked thread").fork();
-		new PingTest(0).run();
+		// testing condition
+		Condition2.selfTest();
 	}
 
 	private static final char dbgThread = 't';
@@ -431,6 +493,11 @@ public class KThread {
 	private String name = "(unnamed thread)";
 	private Runnable target;
 	private TCB tcb;
+
+	/**
+	 * thread that called join
+	 */
+	private KThread parentThread = null;
 
 	/**
 	 * Unique identifer for this thread. Used to deterministically compare
