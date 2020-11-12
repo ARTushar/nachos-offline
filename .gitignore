@@ -1,5 +1,6 @@
 out
 .idea
+*.iml
 nachos/proj1/nachos
 nachos/proj2/nachos
 nachos/proj3/nachos
