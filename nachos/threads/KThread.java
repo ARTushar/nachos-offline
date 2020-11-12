@@ -459,11 +459,14 @@ public class KThread {
 	 */
 	public static void selfTest() {
 		Lib.debug(dbgThread, "Enter KThread.selfTest");
+//
+//		new KThread(new PingTest(1)).setName("forked thread").fork();
+//		new PingTest(0).run();
+//
+//		new JoinTest().run();
 
-		new KThread(new PingTest(1)).setName("forked thread").fork();
-		new PingTest(0).run();
-
-		new JoinTest().run();
+		// testing condition
+		Condition2.selfTest();
 	}
 
 	private static final char dbgThread = 't';

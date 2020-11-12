@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.LinkedList;
+
 /**
  * An implementation of condition variables that disables interrupt()s for
  * synchronization.
@@ -79,4 +81,127 @@ public class Condition2 {
   }
 
   private Lock conditionLock;
+
+  private static class PingTest implements Runnable{
+
+    PingTest(){
+      run();
+    }
+
+    @Override
+    public void run() {
+      LinkedList<Integer> items = new LinkedList<>();
+      Integer capacity =  5;
+
+      PC pc = new PC(items, capacity);
+
+      Producer producer = new Producer(pc);
+      Consumer consumer = new Consumer(pc);
+
+      new KThread(producer).fork();
+      new KThread(consumer).fork();
+    }
+
+    private static class PC {
+      private Lock mutex;
+      private Condition2 freeSlotCondition;
+      private Condition2 fullSlotCondition;
+      private LinkedList<Integer> items;
+      private Integer capacity;
+
+      PC(LinkedList<Integer> items, Integer capacity){
+        mutex = new Lock();
+        freeSlotCondition = new Condition2(mutex);
+        fullSlotCondition = new Condition2(mutex);
+
+        this.items = items;
+        this.capacity = capacity;
+      }
+
+      public void produce(){
+        mutex.acquire();
+
+        while (items.size() == capacity){
+          freeSlotCondition.sleep();
+        }
+
+        int item = items.size() + 1;
+        items.add(item);
+        System.out.println("Producer produced: " + item);
+
+        fullSlotCondition.wake();
+
+        mutex.release();
+      }
+
+      public void consume(){
+        mutex.acquire();
+
+        while (items.size() == 0){
+          fullSlotCondition.sleep();
+        }
+
+        int item = items.removeFirst();
+        freeSlotCondition.wake();
+        mutex.release();
+        System.out.println("Consumer consumed : " + item);
+      }
+    }
+
+    }
+
+    private static class Producer implements Runnable{
+
+      PingTest.PC pc;
+
+      Producer(PingTest.PC pc){
+        this.pc = pc;
+      }
+
+      @Override
+      public void run() {
+        for(int i = 0; i < 100; i++){
+          pc.produce();
+        }
+      }
+    }
+
+    private static class Consumer implements Runnable{
+      PingTest.PC pc;
+
+      Consumer(PingTest.PC pc){
+        this.pc = pc;
+      }
+
+      @Override
+      public void run() {
+        for(int i = 0; i < 100; i++){
+          pc.consume();
+        }
+      }
+
+      private Lock mutex;
+      private Lock freeSlot;
+      private Lock fullSlot;
+      private Condition freeSlotCondition;
+      private Condition fullSlotCondition;
+      private LinkedList<Integer> items;
+      private Integer capacity;
+
+      Consumer(LinkedList<Integer> items, Integer capacity){
+        mutex = new Lock();
+        freeSlot = new Lock();
+        fullSlot = new Lock();
+        freeSlotCondition = new Condition(freeSlot);
+        fullSlotCondition = new Condition(fullSlot);
+
+        this.items = items;
+        this.capacity = capacity;
+      }
+
+  }
+
+  public static void selfTest(){
+      new PingTest();
+  }
 }
