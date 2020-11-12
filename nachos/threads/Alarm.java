@@ -32,37 +32,37 @@ public class Alarm {
      * that should be run.
      */
     public void timerInterrupt() {
-	    if (callerThread != null && wakeTime < Machine.timer().getTime()) {
-	        callerThread.ready();
-	        callerThread = null;
-	        wakeTime = 0;
-	        binaryLock.V();
-        }
-	    KThread.yield();
+      if (callerThread != null && wakeTime < Machine.timer().getTime()) {
+        callerThread.ready();
+        callerThread = null;
+        wakeTime = 0;
+        binaryLock.V();
+      }
+      KThread.yield();
     }
 
-    /**
-     * Put the current thread to sleep for at least <i>x</i> ticks,
-     * waking it up in the timer interrupt handler. The thread must be
-     * woken up (placed in the scheduler ready set) during the first timer
-     * interrupt where
-     *
-     * <p><blockquote>
-     * (current time) >= (WaitUntil called time)+(x)
-     * </blockquote>
-     *
-     * @param	x	the minimum number of clock ticks to wait.
-     *
-     * @see	nachos.machine.Timer#getTime()
-     */
-    public void waitUntil(long x) {
-      binaryLock.P();
-      wakeTime = Machine.timer().getTime() + x;
-      callerThread = KThread.currentThread();
-      boolean status = Machine.interrupt().disable();
-      KThread.sleep();
-      Machine.interrupt().restore(status);
-    }
+  /**
+   * Put the current thread to sleep for at least <i>x</i> ticks,
+   * waking it up in the timer interrupt handler. The thread must be
+   * woken up (placed in the scheduler ready set) during the first timer
+   * interrupt where
+   *
+   * <p><blockquote>
+   * (current time) >= (WaitUntil called time)+(x)
+   * </blockquote>
+   *
+   * @param	x	the minimum number of clock ticks to wait.
+   *
+   * @see	nachos.machine.Timer#getTime()
+   */
+  public void waitUntil(long x) {
+    binaryLock.P();
+    wakeTime = Machine.timer().getTime() + x;
+    callerThread = KThread.currentThread();
+    boolean status = Machine.interrupt().disable();
+    KThread.sleep();
+    Machine.interrupt().restore(status);
+  }
 
   public static void selfTest() {
     new PingTest().run();

@@ -56,11 +56,12 @@ public class Communicator {
     while(speakerCount > 1) moreWriter.sleep();
     speakerPresent = true;
     while (!listenerPresent) conditionVarSpeaker.sleep();
+    conditionVarListener.wake();
     this.word = word;
     spoken = true;
     written.wake();
-    conditionLock.release();
-    conditionLock.acquire();
+//    conditionLock.release();
+//    conditionLock.acquire();
     while(!listened)  {
       read.sleep();
     }
@@ -84,8 +85,6 @@ public class Communicator {
     listenerPresent = true;
     while (!speakerPresent) conditionVarListener.sleep();
     conditionVarSpeaker.wake();
-    conditionLock.release();
-    conditionLock.acquire();
     while(!spoken){
       written.sleep();
     }
@@ -93,8 +92,8 @@ public class Communicator {
     int data = word;
     listened = true;
     read.wake();
-    conditionLock.release();
-    conditionLock.acquire();
+//    conditionLock.release();
+//    conditionLock.acquire();
     listenerPresent = false;
     readerCount--;
     if(readerCount != 0) moreReader.wake();
@@ -114,8 +113,13 @@ public class Communicator {
       Sender sender = new Sender(communicator);
       Receiver receiver = new Receiver(communicator);
 
-      new KThread(sender).fork();
-      new KThread(receiver).fork();
+      KThread send = new KThread(sender);
+      KThread receive = new KThread(receiver);
+
+      send.fork();
+      receive.fork();
+      send.join();
+      receive.join();
     }
 
     private static class Sender implements Runnable{
@@ -128,7 +132,7 @@ public class Communicator {
 
       @Override
       public void run() {
-        for(int i = 0; i < 10; i++){
+        for(int i = 0; i < 100; i++){
           System.out.println("Sent: " + i);
           communicator.speak(i);
         }
@@ -145,7 +149,7 @@ public class Communicator {
 
       @Override
       public void run() {
-        for(int i = 0; i < 10; i++){
+        for(int i = 0; i < 100; i++){
           int data = communicator.listen();
           System.out.println("Listened: " + data);
         }
