@@ -30,6 +30,9 @@ public class UThread extends KThread {
 
 		Machine.processor().run();
 
+		UserProcess process = UserProcess.newUserProcess();
+		Lib.assertTrue(process.execute(Machine.getShellProgramName(), new String[] { }));
+
 		Lib.assertNotReached();
 	}
 

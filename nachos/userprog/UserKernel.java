@@ -4,6 +4,8 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 
+import java.util.LinkedList;
+
 /**
  * A kernel that can support multiple user processes.
  */
@@ -22,7 +24,13 @@ public class UserKernel extends ThreadedKernel {
 	public void initialize(String[] args) {
 		super.initialize(args);
 
+		lock = new Lock();
 		console = new SynchConsole(Machine.console());
+		availablePageList = new LinkedList<>();
+		for (int i=0; i<Machine.processor().getNumPhysPages(); i++) {
+			availablePageList.addLast(i);
+		}
+		System.out.println("total available pages: " + availablePageList.size() + " pages: " + Machine.processor().getNumPhysPages());
 
 		Machine.processor().setExceptionHandler(new Runnable() {
 			public void run() { exceptionHandler(); }
@@ -35,18 +43,18 @@ public class UserKernel extends ThreadedKernel {
 	public void selfTest() {
 		super.selfTest();
 
-		System.out.println("Testing the console device. Typed characters");
-		System.out.println("will be echoed until q is typed.");
-
-		char c;
-
-		do {
-			c = (char) console.readByte(true);
-			console.writeByte(c);
-		}
-		while (c != 'q');
-
-		System.out.println("");
+//		System.out.println("Testing the console device. Typed characters");
+//		System.out.println("will be echoed until q is typed.");
+//
+//		char c;
+//
+//		do {
+//			c = (char) console.readByte(true);
+//			console.writeByte(c);
+//		}
+//		while (c != 'q');
+//
+//		System.out.println("");
 	}
 
 	/**
@@ -95,10 +103,22 @@ public class UserKernel extends ThreadedKernel {
 		UserProcess process = UserProcess.newUserProcess();
 
 		String shellProgram = Machine.getShellProgramName();
+		System.out.println("executing the user process");
 		Lib.assertTrue(process.execute(shellProgram, new String[] { }));
+		System.out.println("finish executioin");
 
 
 		KThread.currentThread().finish();
+	}
+
+	public static int useNextAvailablePage() {
+		if (availablePageList.size() == 0) return -1;
+		int pageNum = availablePageList.removeFirst();
+		return pageNum;
+	}
+
+	public static void addNewAvailablePage(int pageNum) {
+		availablePageList.addLast(pageNum);
 	}
 
 	/**
@@ -111,6 +131,11 @@ public class UserKernel extends ThreadedKernel {
 	/** Globally accessible reference to the synchronized console. */
 	public static SynchConsole console;
 
+	public static Lock lock = null;
+
 	// dummy variables to make javac smarter
 	private static Coff dummy1 = null;
+
+	public static LinkedList<Integer> availablePageList = null;
+
 }

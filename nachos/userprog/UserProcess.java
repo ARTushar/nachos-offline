@@ -72,6 +72,14 @@ public class UserProcess {
 		Machine.processor().setPageTable(pageTable);
 	}
 
+
+	public int translateVirtualToPhysicalAddress(int virtualAddress) {
+		int offset = virtualAddress & ((1<<10)-1);
+		int vpn = (virtualAddress>>10);
+		int ppn = pageTable[vpn].ppn;
+		return (ppn<<10)+offset;
+	}
+
 	/**
 	 * Read a null-terminated string from this process's virtual memory. Read
 	 * at most <tt>maxLength + 1</tt> bytes from the specified address, search
@@ -133,12 +141,14 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
+		// translating virtual address to physical address
 		if (vaddr < 0 || vaddr >= memory.length)
 			return 0;
 
-		int amount = Math.min(length, memory.length-vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
+		int paddr = translateVirtualToPhysicalAddress(vaddr);
+
+		int amount = Math.min(length, memory.length-paddr);
+		System.arraycopy(memory, paddr, data, offset, amount);
 
 		return amount;
 	}
@@ -180,8 +190,9 @@ public class UserProcess {
 		if (vaddr < 0 || vaddr >= memory.length)
 			return 0;
 
-		int amount = Math.min(length, memory.length-vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
+		int paddr = translateVirtualToPhysicalAddress(vaddr);
+		int amount = Math.min(length, memory.length-paddr);
+		System.arraycopy(data, offset, memory, paddr, amount);
 
 		return amount;
 	}
@@ -297,9 +308,13 @@ public class UserProcess {
 
 			for (int i=0; i<section.getLength(); i++) {
 				int vpn = section.getFirstVPN()+i;
-
-				// for now, just assume virtual addresses=physical addresses
-				section.loadPage(i, vpn);
+				// mapping virtual to physical address
+				UserKernel.lock.acquire();
+				int phyPageNum = UserKernel.useNextAvailablePage();
+				UserKernel.lock.release();
+				pageTable[vpn].ppn = phyPageNum;
+				if(section.isReadOnly()) pageTable[vpn].readOnly = true;
+				section.loadPage(i, phyPageNum);
 			}
 		}
 
@@ -310,6 +325,20 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		for (int s=0; s<coff.getNumSections(); s++) {
+			CoffSection section = coff.getSection(s);
+
+			for (int i=0; i<section.getLength(); i++) {
+				int vpn = section.getFirstVPN()+i;
+				// mapping virtual to physical address
+				int phyPageNum = pageTable[vpn].ppn;
+				pageTable[vpn].ppn = -1;
+				pageTable[vpn].readOnly = false;
+				UserKernel.lock.acquire();
+				UserKernel.addNewAvailablePage(phyPageNum);
+				UserKernel.lock.release();
+			}
+		}
 	}
 
 	/**
@@ -436,6 +465,8 @@ public class UserProcess {
 	 */
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
+		// deallocate allocated pages
+		unloadSections();
 
 		switch (cause) {
 			case Processor.exceptionSyscall:
