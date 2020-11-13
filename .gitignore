@@ -5,3 +5,7 @@ nachos/proj1/nachos
 nachos/proj2/nachos
 nachos/proj3/nachos
 nachos/proj4/nachos
+nachos/test/*.coff
+nachos/test/*.o
+nachos/test/strt.s
+nachos/test/libnachos.a
