@@ -98,7 +98,9 @@ public class UserKernel extends ThreadedKernel {
 		Lib.assertTrue(process.execute(shellProgram, new String[] { }));
 
 
+		System.out.println("ye i  am starting");
 		KThread.currentThread().finish();
+		System.out.println("finised");
 	}
 
 	/**

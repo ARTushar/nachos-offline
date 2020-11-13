@@ -2,9 +2,12 @@ package nachos.userprog;
 
 import nachos.machine.*;
 import nachos.threads.*;
-import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -52,7 +55,8 @@ public class UserProcess {
 		if (!load(name, args))
 			return false;
 
-		new UThread(this).setName(name).fork();
+		thread = new UThread(this);
+    thread.setName(name).fork();
 
 		return true;
 	}
@@ -367,6 +371,67 @@ public class UserProcess {
 	}
 
 
+	private void handleExit(int status){
+		UserProcess currentProcess = UserKernel.currentProcess();
+		Lib.assertTrue(currentProcess != null);
+		if(currentProcess.parentProcess != null){
+			currentProcess.parentProcess.childProcesesStatus.replace(currentProcess.processId, status);
+			currentProcess.parentProcess.childProcesses.remove(currentProcess);
+		}
+		for(int i = 0; i < currentProcess.childProcesses.size(); i++){
+			currentProcess.childProcesses.get(i).parentProcess = null;
+		}
+
+		KThread.currentThread().finish();
+	}
+
+	private int handleExec(int fileVirtualAddress, int argc, int argvVirtualAdress){
+		String fileName = readVirtualMemoryString(fileVirtualAddress, 128);
+
+		String[] argvs = new String[argc];
+		int tempAddress = argvVirtualAdress;
+		for(int i = 0; i < argc; i++){
+			argvs[i] = readVirtualMemoryString(tempAddress, 128);
+			tempAddress += argvs[i].length() + 1;
+		}
+
+		UserProcess process = new UserProcess();
+		process.parentProcess = this;
+		processSemaphore.P();
+		process.processId = totalProcesses + 1;
+		totalProcesses++;
+		childProcesesStatus.put(totalProcesses, 0);
+		processSemaphore.V();
+		childProcesses.add(process);
+		if(process.execute(fileName, argvs)){
+			return process.processId;
+		}
+		return -1;
+	}
+
+	private int handleJoin(int processId, int virtualAdressStatus){
+	  UserProcess child = null;
+	  for(int i = 0; i < childProcesses.size(); i++){
+	  	if(childProcesses.get(i).processId == processId){
+	  		child = childProcesses.get(i);
+	  		break;
+			}
+		}
+
+	  if(child == null){
+	  	return -1;
+		}
+
+	  child.thread.join();
+	  int status = childProcesesStatus.get(child.processId);
+	  byte[] statusByte = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+				.putInt(status).array();
+	  writeVirtualMemory(virtualAdressStatus, statusByte);
+
+	  return 1;
+	}
+
+
 	private static final int
 			syscallHalt = 0,
 			syscallExit = 1,
@@ -408,6 +473,7 @@ public class UserProcess {
 	 * @return	the value to be returned to the user.
 	 */
 	public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
+		System.out.println("syscall : " + syscall);
 		switch (syscall) {
 			case syscallHalt:
 				return handleHalt();
@@ -418,6 +484,15 @@ public class UserProcess {
 			case syscallWrite:
 				return handleWrite(a0, a1, a2);
 
+			case syscallExit:
+				handleExit(a0);
+				return 1;
+
+			case syscallExec:
+				return handleExec(a0, a1, a2);
+
+			case syscallJoin:
+				return handleJoin(a0, a1);
 
 			default:
 				Lib.debug(dbgProcess, "Unknown syscall " + syscall);
@@ -472,4 +547,11 @@ public class UserProcess {
 
 	private static final int pageSize = Processor.pageSize;
 	private static final char dbgProcess = 'a';
+	private ArrayList<UserProcess> childProcesses = new ArrayList<>();
+	private HashMap<Integer, Integer> childProcesesStatus = new HashMap<>();
+	private UserProcess parentProcess;
+	private int processId;
+	private static int totalProcesses= 0;
+	private UThread thread;
+	private static Semaphore processSemaphore = new Semaphore(1);
 }
