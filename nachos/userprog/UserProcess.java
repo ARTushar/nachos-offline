@@ -347,6 +347,7 @@ public class UserProcess {
 	}
 
 	private int handleRead(int fd, int virtualAddress, int size) {
+		if(fd != 0 || size <= 0) return -1;
 		OpenFile file = UserKernel.console.openForReading();
 		byte[] data = new byte[size];
 		file.read(data, 0, size);
@@ -355,10 +356,12 @@ public class UserProcess {
   }
 
   private int handleWrite(int fd, int virtualAdress, int size){
+		if(fd != 1 || size <= 0) return -1;
 		OpenFile file = UserKernel.console.openForWriting();
 		byte[] data = new byte[size];
-		readVirtualMemory(virtualAdress, data);
-		int length = file.write(data, 0, size);
+		int length = readVirtualMemory(virtualAdress, data);
+//		if(length == 0) return 0;
+		length = file.write(data, 0, length);
 		file.close();
 		return length;
 	}

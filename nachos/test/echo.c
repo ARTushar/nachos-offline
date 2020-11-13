@@ -36,10 +36,11 @@ int main(int argc, char** argv)
     printf("\n------------CHECKING INVALID WRITE CALLS--------------\n");
     num = write(3, &buf, 10);
     printf("Return on invalid file descriptor: %d\n", num);
-    num = write(0, -12, 10);
+    num = write(1, -12, 10);
     printf("Return on invallid vaddr: %d\n", num);
-    num = write(0, &buf, -2);
+    num = write(1, &buf, -2);
     printf("Return on invallid size: %d\n", num);
+
     printf("------------END CHECKING INVALID WRITE CALLS--------------\n");
    
     printf("\n------------CHECKING INVALID JOIN CALLS--------------\n");
