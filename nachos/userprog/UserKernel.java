@@ -108,7 +108,9 @@ public class UserKernel extends ThreadedKernel {
 		System.out.println("finish executioin");
 
 
+		System.out.println("ye i  am starting");
 		KThread.currentThread().finish();
+		System.out.println("finised");
 	}
 
 	public static int useNextAvailablePage() {
