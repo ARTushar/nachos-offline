@@ -472,7 +472,7 @@ public class KThread {
 
 		// testing Communicator Class
 
-		Communicator.selfTest();
+//		Communicator.selfTest();
 	}
 
 	private static final char dbgThread = 't';
