@@ -79,8 +79,12 @@ public class UserProcess {
 
 	public int translateVirtualToPhysicalAddress(int virtualAddress) {
 		int offset = virtualAddress & ((1<<10)-1);
-		int vpn = (virtualAddress>>10);
+//		System.out.println((1<<10)-1);
+		int vpn = (virtualAddress>>>10);
+//		System.out.println("vpn: " + vpn);
 		int ppn = pageTable[vpn].ppn;
+//		System.out.println("ppn: "+ppn);
+//		System.out.println("paddr: "+(ppn<<10)+offset);
 		return (ppn<<10)+offset;
 	}
 
@@ -150,6 +154,10 @@ public class UserProcess {
 			return 0;
 
 		int paddr = translateVirtualToPhysicalAddress(vaddr);
+//		System.out.println("vaddr: " + vaddr + " padd: " + paddr);
+		if (paddr<0 || paddr >= memory.length) {
+			return 0;
+		}
 
 		int amount = Math.min(length, memory.length-paddr);
 		System.arraycopy(memory, paddr, data, offset, amount);
@@ -195,6 +203,9 @@ public class UserProcess {
 			return 0;
 
 		int paddr = translateVirtualToPhysicalAddress(vaddr);
+		if (paddr<0 || paddr >= memory.length) {
+			return 0;
+		}
 		int amount = Math.min(length, memory.length-paddr);
 		System.arraycopy(data, offset, memory, paddr, amount);
 
@@ -265,8 +276,12 @@ public class UserProcess {
 		// and finally reserve 1 page for arguments
 		numPages++;
 
+		System.out.println("before load section");
+
 		if (!loadSections())
 			return false;
+
+		System.out.println("after load section");
 
 		// store arguments in last page
 		int entryOffset = (numPages-1)*pageSize;
@@ -502,7 +517,7 @@ public class UserProcess {
 	 * @return	the value to be returned to the user.
 	 */
 	public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
-		System.out.println("syscall : " + syscall);
+//		System.out.println("syscall : " + syscall);
 		switch (syscall) {
 			case syscallHalt:
 				return handleHalt();
@@ -541,7 +556,7 @@ public class UserProcess {
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
 		// deallocate allocated pages
-		unloadSections();
+//		unloadSections();
 
 		switch (cause) {
 			case Processor.exceptionSyscall:
@@ -553,6 +568,7 @@ public class UserProcess {
 				);
 				processor.writeRegister(Processor.regV0, result);
 				processor.advancePC();
+				unloadSections();
 				break;
 
 			default:
