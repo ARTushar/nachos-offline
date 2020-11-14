@@ -276,12 +276,12 @@ public class UserProcess {
 		// and finally reserve 1 page for arguments
 		numPages++;
 
-		System.out.println("before load section");
+		//System.out.println("before load section");
 
 		if (!loadSections())
 			return false;
 
-		System.out.println("after load section");
+		//System.out.println("after load section");
 
 		// store arguments in last page
 		int entryOffset = (numPages-1)*pageSize;
@@ -388,6 +388,10 @@ public class UserProcess {
 	 */
 	private int handleHalt() {
 
+		if(UserKernel.currentProcess().parentProcess != null) return -1;
+
+		fileRead.close();
+		fileWrite.close();
 		Machine.halt();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
@@ -396,34 +400,39 @@ public class UserProcess {
 
 	private int handleRead(int fd, int virtualAddress, int size) {
 		if(fd != 0 || size <= 0) return -1;
-		OpenFile file = UserKernel.console.openForReading();
+
 		byte[] data = new byte[size];
-		file.read(data, 0, size);
-		file.close();
+		readSemaphore.P();
+		fileRead.read(data, 0, size);
+		readSemaphore.V();
 		return writeVirtualMemory(virtualAddress, data);
   }
 
   private int handleWrite(int fd, int virtualAdress, int size){
 		if(fd != 1 || size <= 0) return -1;
-		OpenFile file = UserKernel.console.openForWriting();
 		byte[] data = new byte[size];
 		int length = readVirtualMemory(virtualAdress, data);
 //		if(length == 0) return 0;
-		length = file.write(data, 0, length);
-		file.close();
+		writeSemaphore.P();
+		length = fileWrite.write(data, 0, length);
+		writeSemaphore.V();
 		return length;
 	}
 
 
 	private void handleExit(int status){
-		UserProcess currentProcess = UserKernel.currentProcess();
-		Lib.assertTrue(currentProcess != null);
-		if(currentProcess.parentProcess != null){
-			currentProcess.parentProcess.childProcesesStatus.replace(currentProcess.processId, status);
-			currentProcess.parentProcess.childProcesses.remove(currentProcess);
+		if(parentProcess != null){
+			//System.out.println("process exiting : " + processId);
+			parentProcess.childProcesesStatus.replace(processId, status);
+			//System.out.println("length before : " + parentProcess.childProcesses.size());
+			parentProcess.childProcesses.remove(this);
+			//System.out.println("length before : " + parentProcess.childProcesses.size());
+		} else{
+			fileWrite.close();
+			fileRead.close();
 		}
-		for(int i = 0; i < currentProcess.childProcesses.size(); i++){
-			currentProcess.childProcesses.get(i).parentProcess = null;
+		for(int i = 0; i < childProcesses.size(); i++){
+			childProcesses.get(i).parentProcess = null;
 		}
 
 		KThread.currentThread().finish();
@@ -456,6 +465,7 @@ public class UserProcess {
 	private int handleJoin(int processId, int virtualAdressStatus){
 	  UserProcess child = null;
 	  for(int i = 0; i < childProcesses.size(); i++){
+//			System.out.println("join  child process : " + childProcesses.get(i).processId);
 	  	if(childProcesses.get(i).processId == processId){
 	  		child = childProcesses.get(i);
 	  		break;
@@ -472,6 +482,7 @@ public class UserProcess {
 				.putInt(status).array();
 	  writeVirtualMemory(virtualAdressStatus, statusByte);
 
+	  if(status == -1) return 0;
 	  return 1;
 	}
 
@@ -568,10 +579,13 @@ public class UserProcess {
 				);
 				processor.writeRegister(Processor.regV0, result);
 				processor.advancePC();
-				unloadSections();
+//				unloadSections();
 				break;
 
 			default:
+			  if(parentProcess != null){
+			  	parentProcess.childProcesesStatus.replace(processId, -1);
+				}
 				Lib.debug(dbgProcess, "Unexpected exception: " +
 						Processor.exceptionNames[cause]);
 				Lib.assertNotReached("Unexpected exception");
@@ -601,4 +615,8 @@ public class UserProcess {
 	private static int totalProcesses= 0;
 	private UThread thread;
 	private static Semaphore processSemaphore = new Semaphore(1);
+	private static Semaphore readSemaphore = new Semaphore(1);
+	private static Semaphore writeSemaphore = new Semaphore(1);
+	private static OpenFile fileRead = UserKernel.console.openForReading();
+	private static OpenFile fileWrite = UserKernel.console.openForWriting();
 }
