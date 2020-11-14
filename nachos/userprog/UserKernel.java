@@ -30,7 +30,7 @@ public class UserKernel extends ThreadedKernel {
 		for (int i=0; i<Machine.processor().getNumPhysPages(); i++) {
 			availablePageList.addLast(i);
 		}
-		System.out.println("total available pages: " + availablePageList.size() + " pages: " + Machine.processor().getNumPhysPages());
+//		System.out.println("total available pages: " + availablePageList.size() + " pages: " + Machine.processor().getNumPhysPages());
 
 		Machine.processor().setExceptionHandler(new Runnable() {
 			public void run() { exceptionHandler(); }
@@ -103,14 +103,14 @@ public class UserKernel extends ThreadedKernel {
 		UserProcess process = UserProcess.newUserProcess();
 
 		String shellProgram = Machine.getShellProgramName();
-		System.out.println("executing the user process");
+//		System.out.println("executing the user process");
 		Lib.assertTrue(process.execute(shellProgram, new String[] { }));
-		System.out.println("finish executioin");
+//		System.out.println("finish executioin");
 
 
-		System.out.println("ye i  am starting");
+//		System.out.println("ye i  am starting");
 		KThread.currentThread().finish();
-		System.out.println("finised");
+//		System.out.println("finised");
 	}
 
 	public static int useNextAvailablePage() {

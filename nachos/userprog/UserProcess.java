@@ -312,7 +312,7 @@ public class UserProcess {
 	 * @return	<tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		if (numPages > Machine.processor().getNumPhysPages()) {
+		if (numPages > UserKernel.availablePageList.size()){
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
 			return false;
@@ -389,7 +389,7 @@ public class UserProcess {
 	private int handleHalt() {
 
 		if(UserKernel.currentProcess().parentProcess != null) return -1;
-
+		unloadSections();
 		fileRead.close();
 		fileWrite.close();
 		Machine.halt();
@@ -421,6 +421,7 @@ public class UserProcess {
 
 
 	private void handleExit(int status){
+		unloadSections();
 		if(parentProcess != null){
 			//System.out.println("process exiting : " + processId);
 			parentProcess.childProcesesStatus.replace(processId, status);
@@ -435,6 +436,7 @@ public class UserProcess {
 			childProcesses.get(i).parentProcess = null;
 		}
 
+		if(parentProcess == null) Kernel.kernel.terminate();
 		KThread.currentThread().finish();
 	}
 
@@ -467,12 +469,14 @@ public class UserProcess {
 	  for(int i = 0; i < childProcesses.size(); i++){
 //			System.out.println("join  child process : " + childProcesses.get(i).processId);
 	  	if(childProcesses.get(i).processId == processId){
+			System.out.println("join  child process : " + processId);
 	  		child = childProcesses.get(i);
 	  		break;
 			}
 		}
 
 	  if(child == null){
+			System.out.println("hi am here");
 	  	return -1;
 		}
 
@@ -550,6 +554,7 @@ public class UserProcess {
 				return handleJoin(a0, a1);
 
 			default:
+				unloadSections();
 				Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 				Lib.assertNotReached("Unknown system call!");
 		}
@@ -567,7 +572,6 @@ public class UserProcess {
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
 		// deallocate allocated pages
-//		unloadSections();
 
 		switch (cause) {
 			case Processor.exceptionSyscall:
@@ -579,7 +583,6 @@ public class UserProcess {
 				);
 				processor.writeRegister(Processor.regV0, result);
 				processor.advancePC();
-//				unloadSections();
 				break;
 
 			default:
