@@ -2,7 +2,7 @@
 
 package nachos.machine;
 
-import nachos.security.*;
+import nachos.security.Privilege;
 
 /**
  * The <tt>Processor</tt> class simulates a MIPS processor that supports a

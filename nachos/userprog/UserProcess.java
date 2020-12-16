@@ -26,10 +26,10 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
-		for (int i=0; i<numPhysPages; i++)
-			pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+//		int numPhysPages = Machine.processor().getNumPhysPages();
+//		pageTable = new TranslationEntry[numPhysPages];
+//		for (int i=0; i<numPhysPages; i++)
+//			pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
 	}
 
 	/**
@@ -73,7 +73,7 @@ public class UserProcess {
 	 * <tt>UThread.restoreState()</tt>.
 	 */
 	public void restoreState() {
-		Machine.processor().setPageTable(pageTable);
+//		Machine.processor().setPageTable(pageTable);
 	}
 
 
@@ -82,10 +82,11 @@ public class UserProcess {
 //		System.out.println((1<<10)-1);
 		int vpn = (virtualAddress>>>10);
 //		System.out.println("vpn: " + vpn);
-		int ppn = pageTable[vpn].ppn;
+//		int ppn = pageTable[vpn].ppn;
 //		System.out.println("ppn: "+ppn);
 //		System.out.println("paddr: "+(ppn<<10)+offset);
-		return (ppn<<10)+offset;
+//		return (ppn<<10)+offset;
+    return 0;
 	}
 
 	/**
@@ -143,10 +144,11 @@ public class UserProcess {
 	 *			the array.
 	 * @return	the number of bytes successfully transferred.
 	 */
+	@SuppressWarnings("Duplicates")
 	public int readVirtualMemory(int vaddr, byte[] data, int offset,
 															 int length) {
 		Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
-
+//		System.out.println("Hi i am in read virtual memory");
 		byte[] memory = Machine.processor().getMemory();
 
 		// translating virtual address to physical address
@@ -195,6 +197,7 @@ public class UserProcess {
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset,
 																int length) {
 		Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
+//		System.out.println("Hi i am in write virtual memory");
 
 		byte[] memory = Machine.processor().getMemory();
 
@@ -230,6 +233,8 @@ public class UserProcess {
 			Lib.debug(dbgProcess, "\topen failed");
 			return false;
 		}
+
+		System.out.println("Load");
 
 		try {
 			coff = new Coff(executable);
@@ -276,12 +281,11 @@ public class UserProcess {
 		// and finally reserve 1 page for arguments
 		numPages++;
 
-		//System.out.println("before load section");
-
+		System.out.println("before load section");
 		if (!loadSections())
 			return false;
 
-		//System.out.println("after load section");
+		System.out.println("after load section");
 
 		// store arguments in last page
 		int entryOffset = (numPages-1)*pageSize;
@@ -312,6 +316,7 @@ public class UserProcess {
 	 * @return	<tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
+		System.out.println("Pages: " + numPages + " available: " + UserKernel.availablePageList.size());
 		if (numPages > UserKernel.availablePageList.size()){
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
@@ -327,13 +332,13 @@ public class UserProcess {
 
 			for (int i=0; i<section.getLength(); i++) {
 				int vpn = section.getFirstVPN()+i;
-				// mapping virtual to physical address
+				// mapping virtual to phyvpnsical address
 				UserKernel.lock.acquire();
 				int phyPageNum = UserKernel.useNextAvailablePage();
 				UserKernel.lock.release();
-				pageTable[vpn].ppn = phyPageNum;
-				if(section.isReadOnly()) pageTable[vpn].readOnly = true;
-				section.loadPage(i, phyPageNum);
+//				pageTable[vpn].ppn = phyPageNum;
+//				if(section.isReadOnly()) pageTable[vpn].readOnly = true;
+//				section.loadPage(i, phyPageNum);
 			}
 		}
 
@@ -349,13 +354,13 @@ public class UserProcess {
 
 			for (int i=0; i<section.getLength(); i++) {
 				int vpn = section.getFirstVPN()+i;
-				// mapping virtual to physical address
-				int phyPageNum = pageTable[vpn].ppn;
-				pageTable[vpn].ppn = -1;
-				pageTable[vpn].readOnly = false;
-				UserKernel.lock.acquire();
-				UserKernel.addNewAvailablePage(phyPageNum);
-				UserKernel.lock.release();
+//				 mapping virtual to physical address
+//				int phyPageNum = pageTable[vpn].ppn;
+//				pageTable[vpn].ppn = -1;
+//				pageTable[vpn].readOnly = false;
+//				UserKernel.lock.acquire();
+//				UserKernel.addNewAvailablePage(phyPageNum);
+//				UserKernel.lock.release();
 			}
 		}
 	}
@@ -400,6 +405,7 @@ public class UserProcess {
 
 	private int handleRead(int fd, int virtualAddress, int size) {
 		if(fd != 0 || size <= 0) return -1;
+//		System.out.println("Handle Read");
 
 		byte[] data = new byte[size];
 		readSemaphore.P();
@@ -445,8 +451,10 @@ public class UserProcess {
 
 		String[] argvs = new String[argc];
 		int tempAddress = argvVirtualAdress;
+		System.out.println("argc: " + argc + " fileName: " + fileName);
 		for(int i = 0; i < argc; i++){
 			argvs[i] = readVirtualMemoryString(tempAddress, 128);
+			System.out.println("argvs " + argvs[i]);
 			tempAddress += argvs[i].length() + 1;
 		}
 
@@ -595,11 +603,15 @@ public class UserProcess {
 		}
 	}
 
+	public int getProcessId() {
+		return processId;
+	}
+
 	/** The program being run by this process. */
 	protected Coff coff;
 
 	/** This process's page table. */
-	protected TranslationEntry[] pageTable;
+//	protected TranslationEntry[] pageTable;
 	/** The number of contiguous pages occupied by the program. */
 	protected int numPages;
 
@@ -612,8 +624,8 @@ public class UserProcess {
 	private static final int pageSize = Processor.pageSize;
 	private static final char dbgProcess = 'a';
 	private ArrayList<UserProcess> childProcesses = new ArrayList<>();
-	private HashMap<Integer, Integer> childProcesesStatus = new HashMap<>();
-	private UserProcess parentProcess;
+	public HashMap<Integer, Integer> childProcesesStatus = new HashMap<>();
+	protected UserProcess parentProcess;
 	private int processId;
 	private static int totalProcesses= 0;
 	private UThread thread;
