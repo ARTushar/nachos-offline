@@ -67,7 +67,7 @@ public class VMProcess extends UserProcess {
       Lib.debug(dbgProcess, "\tinsufficient physical memory");
       return false;
     }
-//    System.out.println("loading sections");
+    System.out.println("loading sections for " + getProcessId());
     int pagesAdded = 0;
     // load sections
     for (int s=0; s<coff.getNumSections(); s++) {
@@ -83,7 +83,7 @@ public class VMProcess extends UserProcess {
         UserKernel.lock.acquire();
         int phyPageNum = UserKernel.useNextAvailablePage();
         String key = Integer.toString(getProcessId()) + vpn;
-        System.out.println("vpn: " + vpn + " key : " + key );
+        System.out.println("vpn: " + vpn + " ppn: " + phyPageNum);
         TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
 //        System.out.println("Entry: " + entry);
         if(section.isReadOnly()) entry.readOnly = true;
@@ -107,6 +107,7 @@ public class VMProcess extends UserProcess {
       String key = Integer.toString(getProcessId()) + vpn;
 //      System.out.println("vpn: " + vpn + " key : " + key );
       TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
+      System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
 //      System.out.println("Entry: " + entry);
       invertedPageTable.put(key, entry);
       UserKernel.lock.release();
@@ -121,6 +122,7 @@ public class VMProcess extends UserProcess {
    */
   protected void unloadSections() {
 //    super.unloadSections();
+    System.out.println("unloading sections for " + getProcessId());
     int pagesAdded = 0;
     for (int s=0; s<coff.getNumSections(); s++) {
       CoffSection section = coff.getSection(s);
@@ -131,6 +133,7 @@ public class VMProcess extends UserProcess {
         String key = Integer.toString(getProcessId()) + vpn;
         UserKernel.lock.acquire();
         int phyPageNum = invertedPageTable.get(key).ppn;
+        System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
         invertedPageTable.remove(key);
         UserKernel.addNewAvailablePage(phyPageNum);
         UserKernel.lock.release();
@@ -144,6 +147,7 @@ public class VMProcess extends UserProcess {
       UserKernel.lock.acquire();
       int phyPageNum = invertedPageTable.get(key).ppn;
       invertedPageTable.remove(key);
+      System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
       UserKernel.addNewAvailablePage(phyPageNum);
       UserKernel.lock.release();
       vpn++;
@@ -211,6 +215,7 @@ public class VMProcess extends UserProcess {
         if(parentProcess != null){
           parentProcess.childProcesesStatus.replace(getProcessId(), -1);
         }
+        System.out.println(cause);
         Lib.debug(dbgProcess, "Unexpected exception: " +
             Processor.exceptionNames[cause]);
         Lib.assertNotReached("Unexpected exception");

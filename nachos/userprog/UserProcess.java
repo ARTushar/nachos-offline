@@ -206,6 +206,7 @@ public class UserProcess {
 			return 0;
 
 		int paddr = translateVirtualToPhysicalAddress(vaddr);
+//		System.out.println("vaddr: " + vaddr + " padd: " + paddr);
 		if (paddr<0 || paddr >= memory.length) {
 			return 0;
 		}
@@ -458,7 +459,7 @@ public class UserProcess {
 			tempAddress += argvs[i].length() + 1;
 		}
 
-		UserProcess process = new UserProcess();
+		UserProcess process = newUserProcess();
 		process.parentProcess = this;
 		processSemaphore.P();
 		process.processId = totalProcesses + 1;
@@ -487,12 +488,15 @@ public class UserProcess {
 			System.out.println("hi am here");
 	  	return -1;
 		}
-
+		System.out.println("hi im joining the child");
 	  child.thread.join();
+		System.out.println("hi joining the child done");
 	  int status = childProcesesStatus.get(child.processId);
 	  byte[] statusByte = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
 				.putInt(status).array();
+		System.out.println("writing the status in join");
 	  writeVirtualMemory(virtualAdressStatus, statusByte);
+		System.out.println("writing the status in join done");
 
 	  if(status == -1) return 0;
 	  return 1;
