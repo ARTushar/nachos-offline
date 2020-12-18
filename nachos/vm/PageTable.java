@@ -27,12 +27,23 @@ public class PageTable {
         return pageTable.get(key);
     }
 
+
+
     public boolean insertEntry (int processId, TranslationEntry entry) {
         PageTableKey key = new PageTableKey(processId, entry.vpn);
         if (pageTable.containsKey(key)) {
             System.out.println("This entry is already in the page table");
             return false;
         }
+        pageTable.put(key, entry);
+        if (entry.valid) {
+            physicalPageToEntryMap[entry.ppn] = new TransEntryWithPID(processId, entry);
+        }
+        return true;
+    }
+
+    public boolean replaceEntry (int processId, TranslationEntry entry) {
+        PageTableKey key = new PageTableKey(processId, entry.vpn);
         pageTable.put(key, entry);
         if (entry.valid) {
             physicalPageToEntryMap[entry.ppn] = new TransEntryWithPID(processId, entry);
@@ -66,6 +77,7 @@ public class PageTable {
                 oldEntry.used = true;
             }
             oldEntry.ppn = entry.ppn;
+            pageTable.put(key, oldEntry);
             physicalPageToEntryMap[oldEntry.ppn] = new TransEntryWithPID(processId, oldEntry);
         }
         return true;

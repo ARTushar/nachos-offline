@@ -10,4 +10,12 @@ public class TransEntryWithPID {
         this.processId = processId;
         this.entry = entry;
     }
+
+    public int getProcessId() {
+        return processId;
+    }
+
+    public TranslationEntry getEntry() {
+        return entry;
+    }
 }

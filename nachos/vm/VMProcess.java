@@ -1,11 +1,11 @@
 package nachos.vm;
 
 import nachos.machine.*;
+import nachos.threads.Lock;
 import nachos.userprog.UserKernel;
 import nachos.userprog.UserProcess;
 
-import javax.sound.midi.Soundbank;
-import java.util.Hashtable;
+import javax.crypto.Mac;
 import java.util.Random;
 
 /**
@@ -39,18 +39,57 @@ public class VMProcess extends UserProcess {
     return Machine.processor().pageFromAddress(vaddr);
   }
 
-  public TranslationEntry findInPageTable (int vpn) {
-    return PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn));
+  public TranslationEntry findInPageTable (int processId, int vpn) {
+    return PageTable.getPageTable().getEntry(new PageTableKey(processId, vpn));
+  }
+
+  @Override
+  public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+    pageLock.acquire();
+
+    int vpn = vaddrToVpn(vaddr);
+    TranslationEntry entry = findInPageTable(getProcessId(), vpn);
+    int ppn;
+    if(entry == null || !entry.valid) {
+      ppn = getAvailablePage();
+      swapToMemory(ppn, vpn);
+      entry = findInPageTable(getProcessId(), vpn);
+    }
+    entry.used = true;
+    PageTable.getPageTable().replaceEntry(getProcessId(), entry);
+
+    pageLock.release();
+    return super.readVirtualMemory(vaddr, data, offset, length);
+  }
+
+  @Override
+  public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+    pageLock.acquire();
+
+    int vpn = vaddrToVpn(vaddr);
+    TranslationEntry entry = findInPageTable(getProcessId(), vpn);
+    int ppn;
+    if(entry == null || !entry.valid) {
+      ppn = getAvailablePage();
+      swapToMemory(ppn, vpn);
+      entry = findInPageTable(getProcessId(), vpn);
+    }
+
+    entry.dirty = true;
+    entry.used = true;
+    PageTable.getPageTable().replaceEntry(getProcessId(), entry);
+
+    pageLock.release();
+    return super.writeVirtualMemory(vaddr, data, offset, length);
   }
 
   @Override
   public int translateVirtualToPhysicalAddress(int virtualAddress) {
     int offset = virtualAddress & ((1<<10)-1);
 //		System.out.println((1<<10)-1);
-    int vpn = (virtualAddress>>>10);
+    int vpn = vaddrToVpn(virtualAddress);
 //		System.out.println("vpn: " + vpn);
-    String key = Integer.toString(getProcessId()) + vpn;
-    int ppn = findInPageTable(vpn).ppn;
+    int ppn = findInPageTable(getProcessId(), vpn).ppn;
 //		System.out.println("ppn: "+ppn);
 //		System.out.println("paddr: "+(ppn<<10)+offset);
     return (ppn<<10)+offset;
@@ -65,18 +104,56 @@ public class VMProcess extends UserProcess {
 
 
   public void swapToMemory (int vpn, int ppn) {
-    TranslationEntry entry = findInPageTable(vpn);
-    if (entry == null || !entry.valid) {
+    TranslationEntry entry = findInPageTable(getProcessId(), vpn);
+    if (entry != null && entry.valid) {
       System.out.println("Invalid swap");
       return;
     }
     byte[] memory = Machine.processor().getMemory();
     byte[] pageContents = Swapper.getInstance().readFromSwapFile(getProcessId(), vpn);
-    System.arraycopy(memory, entry.ppn*pageSize, pageContents, 0, pageSize);
+    System.arraycopy(memory, ppn*pageSize, pageContents, 0, pageSize);
+
+    TranslationEntry newEntry = new TranslationEntry(vpn, ppn, true, false, false, false);
+    PageTable.getPageTable().replaceEntry(getProcessId(), newEntry);
   }
 
-  public void memoryToSwap (int vpn) {
+  public void memoryToSwap (int processId, int vpn) {
+    TranslationEntry entry = findInPageTable(processId, vpn);
+    if (entry == null || !entry.valid) {
+      System.out.println("Invalid entry for swapping");
+      return;
+    }
 
+    for(int i = 0; i < Machine.processor().getTLBSize(); i++) {
+      TranslationEntry tlbEntry = Machine.processor().readTLBEntry(i);
+      if(tlbEntry.vpn == entry.vpn && tlbEntry.ppn == entry.ppn && tlbEntry.valid) {
+        PageTable.getPageTable().updateEntry(getProcessId(), tlbEntry);
+        entry = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn));
+        tlbEntry.valid = false;
+        Machine.processor().writeTLBEntry(i, tlbEntry);
+        break;
+      }
+    }
+
+    if(entry.dirty) {
+      byte[] memory = Machine.processor().getMemory();
+      Swapper.getInstance().writeInSwapFile(getProcessId(), vpn, memory, entry.ppn * pageSize);
+    }
+
+  }
+
+  protected int getAvailablePage() {
+    int ppn = VMKernel.useNextAvailablePage();
+
+    if(ppn == -1) {
+      TransEntryWithPID replacementPage = PageTable.getPageTable().getReplacementEntry();
+      ppn = replacementPage.getEntry().ppn;
+      memoryToSwap(replacementPage.getProcessId(), replacementPage.getEntry().vpn);
+      PageTable.getPageTable().deleteEntry(replacementPage.getProcessId(),
+          replacementPage.getEntry().vpn);
+    }
+
+    return ppn;
   }
 
   @Override
@@ -101,7 +178,7 @@ public class VMProcess extends UserProcess {
       for (int i=0; i< section.getLength(); i++) {
         // mapping virtual to physical address
         UserKernel.lock.acquire();
-        int phyPageNum = UserKernel.useNextAvailablePage();
+        int phyPageNum = getAvailablePage();
         System.out.println("vpn: " + vpn + " ppn: " + phyPageNum);
         TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
 //        System.out.println("Entry: " + entry);
@@ -123,7 +200,7 @@ public class VMProcess extends UserProcess {
     int vpn = pagesAdded;
     for(int i = pagesAdded; i < numPages; i++) {
       UserKernel.lock.acquire();
-      int phyPageNum = UserKernel.useNextAvailablePage();
+      int phyPageNum = getAvailablePage();
 //      System.out.println("vpn: " + vpn + " key : " + key );
       TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
       System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
@@ -176,7 +253,11 @@ public class VMProcess extends UserProcess {
   }
 
   private void handlePageMiss(int vpn) {
-
+    int ppn = getAvailablePage();
+    System.out.println("page miss vpn: " + vpn);
+    swapToMemory(vpn, ppn);
+    TranslationEntry entry = findInPageTable(getProcessId(), vpn);
+    handleTLBWrite(entry);
   }
 
   private void handleTLBWrite(TranslationEntry entry) {
@@ -192,7 +273,7 @@ public class VMProcess extends UserProcess {
 
   private void handleTLBMiss(int virtualAddress) {
     int vpn = vaddrToVpn(virtualAddress);
-    TranslationEntry entry = findInPageTable(vpn);
+    TranslationEntry entry = findInPageTable(getProcessId(), vpn);
 
     if(entry == null || !entry.valid) {
       handlePageMiss(vpn);
@@ -215,33 +296,17 @@ public class VMProcess extends UserProcess {
     // deallocate allocated pages
 
     switch (cause) {
-      case Processor.exceptionSyscall:
-        int result = handleSyscall(processor.readRegister(Processor.regV0),
-            processor.readRegister(Processor.regA0),
-            processor.readRegister(Processor.regA1),
-            processor.readRegister(Processor.regA2),
-            processor.readRegister(Processor.regA3)
-        );
-        processor.writeRegister(Processor.regV0, result);
-        processor.advancePC();
-        break;
-
       case Processor.exceptionTLBMiss:
         handleTLBMiss(Machine.processor().readRegister((Processor.regBadVAddr)));
         break;
 
       default:
-        if(parentProcess != null){
-          parentProcess.childProcesesStatus.replace(getProcessId(), -1);
-        }
-        System.out.println(cause);
-        Lib.debug(dbgProcess, "Unexpected exception: " +
-            Processor.exceptionNames[cause]);
-        Lib.assertNotReached("Unexpected exception");
+        super.handleException(cause);
     }
 
   }
 
+  private static final Lock pageLock = new Lock();
   private static final int pageSize = Processor.pageSize;
   private static final char dbgProcess = 'a';
   private static final char dbgVM = 'v';

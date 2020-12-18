@@ -501,6 +501,44 @@ public class UserProcess {
 	}
 
 	private int handleJoin(int processId, int virtualAdressStatus){
+		if(processId < 0 || virtualAdressStatus < 0){
+			return -1;
+		}
+
+//		UserProcess child = null;
+//		for(int i = 0; i < childProcesses.size(); i++){
+////			System.out.println("join  child process : " + childProcesses.get(i).processId);
+//			if(childProcesses.get(i).processId == processId){
+//				System.out.println("join  child process : " + processId);
+//				child = childProcesses.get(i);
+//				break;
+//			}
+//		}
+//
+//		if(child == null) {
+//			return -1;
+//		}
+//
+//		child.thread.join();
+//
+//		child.parentProcess = null;
+//		childProcesses.remove(child);
+//
+//		Integer status = childProcesesStatus.get(child.processId);
+//		if(status == null) {
+//			return 0;
+//		} else {
+//			byte[] buffer=new byte[4];
+//			buffer=Lib.bytesFromInt(status);
+//			int count=writeVirtualMemory(virtualAdressStatus, buffer);
+//			if(count==4){
+//				return 1;
+//			}else{
+//				System.out.println("handleJoin:Write status failed");
+//				return 0;
+//			}
+//		}
+
 	  UserProcess child = null;
 	  for(int i = 0; i < childProcesses.size(); i++){
 //			System.out.println("join  child process : " + childProcesses.get(i).processId);
