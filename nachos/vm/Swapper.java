@@ -11,7 +11,6 @@ import static nachos.machine.Processor.pageSize;
 public class Swapper {
 
   private OpenFile swapFile;
-  private String swapFileName;
   private HashSet<PageTableKey> unallocatedPages;
   private Hashtable<PageTableKey, Integer> swapTable;
   private LinkedList<Integer> availableLocations;
@@ -20,7 +19,7 @@ public class Swapper {
 
 
   private Swapper() {
-    this.swapFileName = "swapFile";
+    String swapFileName = "swapFile";
     this.swapFile = Machine.stubFileSystem().open(swapFileName, true);
 
     if(swapFile == null){
@@ -57,7 +56,7 @@ public class Swapper {
     } else {
       Integer index = swapTable.get(key);
       if(index == null) {
-        System.out.println("Not found in both the unallocated and allocated");
+        System.out.println("Not found in both the unallocated");
         return -1;
       }
       return index;
