@@ -4,8 +4,6 @@ import nachos.machine.*;
 import nachos.threads.Lock;
 import nachos.userprog.UserKernel;
 import nachos.userprog.UserProcess;
-
-import javax.crypto.Mac;
 import java.util.Random;
 
 /**
@@ -17,6 +15,10 @@ public class VMProcess extends UserProcess {
    */
   public VMProcess() {
     super();
+    tlbBackup = new TranslationEntry[Machine.processor().getTLBSize()];
+    for(int i=0;i<tlbBackup.length;i++){
+      tlbBackup[i]=new TranslationEntry(0,0,false,false,false,false);
+    }
   }
 
   /**
@@ -24,7 +26,13 @@ public class VMProcess extends UserProcess {
    * Called by <tt>UThread.saveState()</tt>.
    */
   public void saveState() {
-    super.saveState();
+//    super.saveState();
+    for(int i=0;i<Machine.processor().getTLBSize();i++){
+      tlbBackup[i]=Machine.processor().readTLBEntry(i);
+      if(tlbBackup[i].valid){
+        PageTable.getPageTable().updateEntry(getProcessId(), tlbBackup[i]);
+      }
+    }
   }
 
   /**
@@ -32,7 +40,21 @@ public class VMProcess extends UserProcess {
    * <tt>UThread.restoreState()</tt>.
    */
   public void restoreState() {
-    super.restoreState();
+//    super.restoreState();
+    for(int i=0;i<tlbBackup.length;i++){
+      if(tlbBackup[i].valid){
+        Machine.processor().writeTLBEntry(i, tlbBackup[i]);
+        //can be swapped out by other processes
+        TranslationEntry entry = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), tlbBackup[i].vpn));
+        if(entry != null &&  entry.valid){
+          Machine.processor().writeTLBEntry(i, entry);
+        } else {
+          Machine.processor().writeTLBEntry(i, new TranslationEntry(0,0,false,false,false,false));
+        }
+      }else{
+        Machine.processor().writeTLBEntry(i, new TranslationEntry(0,0,false,false,false,false));
+      }
+    }
   }
 
   public int vaddrToVpn (int vaddr) {
@@ -45,6 +67,9 @@ public class VMProcess extends UserProcess {
 
   @Override
   public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+    if(vaddr < 0) {
+      return -1;
+    }
     pageLock.acquire();
 
     int vpn = vaddrToVpn(vaddr);
@@ -64,6 +89,9 @@ public class VMProcess extends UserProcess {
 
   @Override
   public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+    if(vaddr < 0) {
+      return -1;
+    }
     pageLock.acquire();
 
     int vpn = vaddrToVpn(vaddr);
@@ -305,7 +333,7 @@ public class VMProcess extends UserProcess {
     }
 
   }
-
+  private TranslationEntry tlbBackup[];
   private static final Lock pageLock = new Lock();
   private static final int pageSize = Processor.pageSize;
   private static final char dbgProcess = 'a';

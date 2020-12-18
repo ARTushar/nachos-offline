@@ -76,7 +76,7 @@ public class UserProcess {
 	 * <tt>UThread.restoreState()</tt>.
 	 */
 	public void restoreState() {
-//		Machine.processor().setPageTable(pageTable);
+		Machine.processor().setPageTable(pageTable);
 	}
 
 
@@ -85,11 +85,10 @@ public class UserProcess {
 //		System.out.println((1<<10)-1);
 		int vpn = (virtualAddress>>>10);
 //		System.out.println("vpn: " + vpn);
-//		int ppn = pageTable[vpn].ppn;
+		int ppn = pageTable[vpn].ppn;
 //		System.out.println("ppn: "+ppn);
 //		System.out.println("paddr: "+(ppn<<10)+offset);
-//		return (ppn<<10)+offset;
-    return 0;
+		return (ppn<<10)+offset;
 	}
 
 	/**
