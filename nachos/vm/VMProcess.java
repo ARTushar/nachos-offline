@@ -17,9 +17,6 @@ public class VMProcess extends UserProcess {
    */
   public VMProcess() {
     super();
-    if(invertedPageTable == null) {
-      invertedPageTable = new Hashtable<>();
-    }
   }
 
   /**
@@ -45,7 +42,7 @@ public class VMProcess extends UserProcess {
     int vpn = (virtualAddress>>>10);
 //		System.out.println("vpn: " + vpn);
     String key = Integer.toString(getProcessId()) + vpn;
-    int ppn = invertedPageTable.get(key).ppn;
+    int ppn = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn)).ppn;
 //		System.out.println("ppn: "+ppn);
 //		System.out.println("paddr: "+(ppn<<10)+offset);
     return (ppn<<10)+offset;
@@ -87,7 +84,7 @@ public class VMProcess extends UserProcess {
         TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
 //        System.out.println("Entry: " + entry);
         if(section.isReadOnly()) entry.readOnly = true;
-        invertedPageTable.put(key, entry);
+        PageTable.getPageTable().insertEntry(getProcessId(), entry);
         UserKernel.lock.release();
         section.loadPage(i, phyPageNum);
         vpn++;
@@ -109,7 +106,7 @@ public class VMProcess extends UserProcess {
       TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
       System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
 //      System.out.println("Entry: " + entry);
-      invertedPageTable.put(key, entry);
+      PageTable.getPageTable().insertEntry(getProcessId(), entry);
       UserKernel.lock.release();
       vpn++;
     }
@@ -132,9 +129,9 @@ public class VMProcess extends UserProcess {
 //				 mapping virtual to physical address
         String key = Integer.toString(getProcessId()) + vpn;
         UserKernel.lock.acquire();
-        int phyPageNum = invertedPageTable.get(key).ppn;
+        int phyPageNum = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn)).ppn;
         System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
-        invertedPageTable.remove(key);
+        PageTable.getPageTable().deleteEntry(getProcessId(), vpn);
         UserKernel.addNewAvailablePage(phyPageNum);
         UserKernel.lock.release();
         vpn++;
@@ -145,8 +142,8 @@ public class VMProcess extends UserProcess {
     for(int i = pagesAdded; i < numPages; i++){
       String key = Integer.toString(getProcessId()) + vpn;
       UserKernel.lock.acquire();
-      int phyPageNum = invertedPageTable.get(key).ppn;
-      invertedPageTable.remove(key);
+      int phyPageNum = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn)).ppn;
+      PageTable.getPageTable().deleteEntry(getProcessId(), vpn);
       System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
       UserKernel.addNewAvailablePage(phyPageNum);
       UserKernel.lock.release();
@@ -169,7 +166,7 @@ public class VMProcess extends UserProcess {
   private void handleTLBMiss(int virtualAddress) {
     int vpn = virtualAddress >>> 10;
     String key = Integer.toString(getProcessId()) + vpn;
-    TranslationEntry entry = invertedPageTable.get(key);
+    TranslationEntry entry = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn));
 
 //    System.out.println("handling tlb miss");
 //    System.out.println("vpn : " + vpn + " virtual Adress : " + virtualAddress);
@@ -226,5 +223,4 @@ public class VMProcess extends UserProcess {
   private static final int pageSize = Processor.pageSize;
   private static final char dbgProcess = 'a';
   private static final char dbgVM = 'v';
-  public static Hashtable<String, TranslationEntry> invertedPageTable;
 }

@@ -26,10 +26,13 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-//		int numPhysPages = Machine.processor().getNumPhysPages();
-//		pageTable = new TranslationEntry[numPhysPages];
-//		for (int i=0; i<numPhysPages; i++)
-//			pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+		int numPhysPages = Machine.processor().getNumPhysPages();
+		pageTable = new TranslationEntry[numPhysPages];
+		for (int i=0; i<numPhysPages; i++)
+			pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+
+//		fileRead = UserKernel.console.openForReading();
+//		fileWrite = UserKernel.console.openForWriting();
 	}
 
 	/**
@@ -325,6 +328,7 @@ public class UserProcess {
 		}
 
 		// load sections
+		int totalAdded = 0;
 		for (int s=0; s<coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
 
@@ -337,10 +341,19 @@ public class UserProcess {
 				UserKernel.lock.acquire();
 				int phyPageNum = UserKernel.useNextAvailablePage();
 				UserKernel.lock.release();
-//				pageTable[vpn].ppn = phyPageNum;
-//				if(section.isReadOnly()) pageTable[vpn].readOnly = true;
-//				section.loadPage(i, phyPageNum);
+				pageTable[vpn].ppn = phyPageNum;
+				if(section.isReadOnly()) pageTable[vpn].readOnly = true;
+				section.loadPage(i, phyPageNum);
+				totalAdded++;
 			}
+		}
+
+		for(int i = totalAdded; i < numPages; i++){
+			// mapping virtual to physical address
+			UserKernel.lock.acquire();
+			int phyPageNum = UserKernel.useNextAvailablePage();
+			UserKernel.lock.release();
+			pageTable[i].ppn = phyPageNum;
 		}
 
 		return true;
@@ -350,19 +363,30 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		int totalDeleted = 0;
 		for (int s=0; s<coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
 
 			for (int i=0; i<section.getLength(); i++) {
 				int vpn = section.getFirstVPN()+i;
-//				 mapping virtual to physical address
-//				int phyPageNum = pageTable[vpn].ppn;
-//				pageTable[vpn].ppn = -1;
-//				pageTable[vpn].readOnly = false;
-//				UserKernel.lock.acquire();
-//				UserKernel.addNewAvailablePage(phyPageNum);
-//				UserKernel.lock.release();
+				// mapping virtual to physical address
+				int phyPageNum = pageTable[vpn].ppn;
+				pageTable[vpn].ppn = -1;
+				pageTable[vpn].readOnly = false;
+				UserKernel.lock.acquire();
+				UserKernel.addNewAvailablePage(phyPageNum);
+				UserKernel.lock.release();
+				totalDeleted++;
 			}
+		}
+
+		for(int i = totalDeleted; i < numPages; i++){
+			int phyPageNum = pageTable[i].ppn;
+			pageTable[i].ppn = -1;
+			pageTable[i].readOnly = false;
+			UserKernel.lock.acquire();
+			UserKernel.addNewAvailablePage(phyPageNum);
+			UserKernel.lock.release();
 		}
 	}
 
@@ -393,7 +417,7 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
-
+		System.out.println("halting");
 		if(UserKernel.currentProcess().parentProcess != null) return -1;
 		unloadSections();
 		fileRead.close();
@@ -401,6 +425,7 @@ public class UserProcess {
 		Machine.halt();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
+		System.out.println("halted");
 		return 0;
 	}
 
@@ -454,9 +479,11 @@ public class UserProcess {
 		int tempAddress = argvVirtualAdress;
 		System.out.println("argc: " + argc + " fileName: " + fileName);
 		for(int i = 0; i < argc; i++){
-			argvs[i] = readVirtualMemoryString(tempAddress, 128);
-			System.out.println("argvs " + argvs[i]);
-			tempAddress += argvs[i].length() + 1;
+		  byte[] buffer = new byte[4];
+		  int readLength = readVirtualMemory(tempAddress + i * 4, buffer);
+			if(readLength != 4)	 return -1;
+			int argvAddress = Lib.bytesToInt(buffer, 0);
+			argvs[i] = readVirtualMemoryString(argvAddress, 128);
 		}
 
 		UserProcess process = newUserProcess();
@@ -615,7 +642,7 @@ public class UserProcess {
 	protected Coff coff;
 
 	/** This process's page table. */
-//	protected TranslationEntry[] pageTable;
+	protected TranslationEntry[] pageTable;
 	/** The number of contiguous pages occupied by the program. */
 	protected int numPages;
 
@@ -636,6 +663,6 @@ public class UserProcess {
 	private static Semaphore processSemaphore = new Semaphore(1);
 	private static Semaphore readSemaphore = new Semaphore(1);
 	private static Semaphore writeSemaphore = new Semaphore(1);
-	private static OpenFile fileRead = UserKernel.console.openForReading();
+	private static OpenFile fileRead  = UserKernel.console.openForReading();
 	private static OpenFile fileWrite = UserKernel.console.openForWriting();
 }
