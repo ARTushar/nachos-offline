@@ -35,6 +35,14 @@ public class VMProcess extends UserProcess {
     super.restoreState();
   }
 
+  public int vaddrToVpn (int vaddr) {
+    return Machine.processor().pageFromAddress(vaddr);
+  }
+
+  public TranslationEntry findInPageTable (int vpn) {
+    return PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn));
+  }
+
   @Override
   public int translateVirtualToPhysicalAddress(int virtualAddress) {
     int offset = virtualAddress & ((1<<10)-1);
@@ -42,7 +50,7 @@ public class VMProcess extends UserProcess {
     int vpn = (virtualAddress>>>10);
 //		System.out.println("vpn: " + vpn);
     String key = Integer.toString(getProcessId()) + vpn;
-    int ppn = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn)).ppn;
+    int ppn = findInPageTable(vpn).ppn;
 //		System.out.println("ppn: "+ppn);
 //		System.out.println("paddr: "+(ppn<<10)+offset);
     return (ppn<<10)+offset;
@@ -55,8 +63,23 @@ public class VMProcess extends UserProcess {
    * @return	<tt>true</tt> if successful.
    */
 
-  @Override
 
+  public void swapToMemory (int vpn, int ppn) {
+    TranslationEntry entry = findInPageTable(vpn);
+    if (entry == null || !entry.valid) {
+      System.out.println("Invalid swap");
+      return;
+    }
+    byte[] memory = Machine.processor().getMemory();
+    byte[] pageContents = Swapper.getInstance().readFromSwapFile(getProcessId(), vpn);
+    System.arraycopy(memory, entry.ppn*pageSize, pageContents, 0, pageSize);
+  }
+
+  public void memoryToSwap (int vpn) {
+
+  }
+
+  @Override
   protected boolean loadSections() {
 //    return super.loadSections();
     if (numPages > UserKernel.availablePageList.size()){
@@ -79,12 +102,12 @@ public class VMProcess extends UserProcess {
         // mapping virtual to physical address
         UserKernel.lock.acquire();
         int phyPageNum = UserKernel.useNextAvailablePage();
-        String key = Integer.toString(getProcessId()) + vpn;
         System.out.println("vpn: " + vpn + " ppn: " + phyPageNum);
         TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
 //        System.out.println("Entry: " + entry);
         if(section.isReadOnly()) entry.readOnly = true;
         PageTable.getPageTable().insertEntry(getProcessId(), entry);
+        Swapper.getInstance().insertUnallocatedPage(getProcessId(), vpn);
         UserKernel.lock.release();
         section.loadPage(i, phyPageNum);
         vpn++;
@@ -101,12 +124,12 @@ public class VMProcess extends UserProcess {
     for(int i = pagesAdded; i < numPages; i++) {
       UserKernel.lock.acquire();
       int phyPageNum = UserKernel.useNextAvailablePage();
-      String key = Integer.toString(getProcessId()) + vpn;
 //      System.out.println("vpn: " + vpn + " key : " + key );
       TranslationEntry entry = new TranslationEntry(vpn, phyPageNum, true, false, false, false);
       System.out.println("vpn : " + vpn + " ppn: " + phyPageNum);
 //      System.out.println("Entry: " + entry);
       PageTable.getPageTable().insertEntry(getProcessId(), entry);
+      Swapper.getInstance().insertUnallocatedPage(getProcessId(), vpn);
       UserKernel.lock.release();
       vpn++;
     }
@@ -159,20 +182,19 @@ public class VMProcess extends UserProcess {
   private void handleTLBWrite(TranslationEntry entry) {
     Random random = new Random();
     int index = random.nextInt(Machine.processor().getTLBSize());
+    TranslationEntry oldtlbentry = Machine.processor().readTLBEntry(index);
+    if (oldtlbentry.valid) {
+      PageTable.getPageTable().updateEntry(getProcessId(), oldtlbentry);
+    }
 //    System.out.println("tlb writing in index " + index);
     Machine.processor().writeTLBEntry(index, entry);
   }
 
   private void handleTLBMiss(int virtualAddress) {
-    int vpn = virtualAddress >>> 10;
-    String key = Integer.toString(getProcessId()) + vpn;
-    TranslationEntry entry = PageTable.getPageTable().getEntry(new PageTableKey(getProcessId(), vpn));
+    int vpn = vaddrToVpn(virtualAddress);
+    TranslationEntry entry = findInPageTable(vpn);
 
-//    System.out.println("handling tlb miss");
-//    System.out.println("vpn : " + vpn + " virtual Adress : " + virtualAddress);
-//    System.out.println(key);
-//    System.out.println(entry);
-    if(entry == null) {
+    if(entry == null || !entry.valid) {
       handlePageMiss(vpn);
     } else {
       handleTLBWrite(entry);
