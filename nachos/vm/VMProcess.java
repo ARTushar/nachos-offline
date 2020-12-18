@@ -5,6 +5,8 @@ import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
 
+import java.util.Hashtable;
+
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
  */
@@ -66,8 +68,8 @@ public class VMProcess extends UserProcess {
 	    break;
 	}
     }
-	
-    private static final int pageSize = Processor.pageSize;
-    private static final char dbgProcess = 'a';
-    private static final char dbgVM = 'v';
+
+  private static final int pageSize = Processor.pageSize;
+  private static final char dbgProcess = 'a';
+  private static final char dbgVM = 'v';
 }
