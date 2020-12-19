@@ -2,6 +2,7 @@ package nachos.userprog;
 
 import nachos.machine.*;
 import nachos.threads.*;
+import nachos.vm.Swapper;
 
 import java.io.EOFException;
 import java.nio.ByteBuffer;
@@ -462,6 +463,7 @@ public class UserProcess {
 		} else{
 			fileWrite.close();
 			fileRead.close();
+			Swapper.getInstance().closeSwapfile();
 		}
 		for(int i = 0; i < childProcesses.size(); i++){
 			childProcesses.get(i).parentProcess = null;
